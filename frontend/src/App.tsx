@@ -1,6 +1,15 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
-import { Download, Play, RotateCcw } from "lucide-react";
-import { createRun, fetchRun, pdfUrl, zipUrl } from "./api";
+import { Download, LogOut, Play, RotateCcw } from "lucide-react";
+import {
+  AuthRequiredError,
+  createRun,
+  fetchAuthStatus,
+  fetchRun,
+  login,
+  logout,
+  pdfUrl,
+  zipUrl,
+} from "./api";
 import type { OfacResult, OfacRun, ResultStatus, RunStatus } from "./types";
 
 const ACTIVE_RUNS = new Set<RunStatus>(["queued", "running"]);
@@ -12,13 +21,20 @@ export function App() {
   const [run, setRun] = useState<OfacRun | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authConfigured, setAuthConfigured] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [username, setUsername] = useState<string | null>(null);
 
   useEffect(() => {
-    const lastRunId = window.localStorage.getItem(LAST_RUN_KEY);
-    if (lastRunId) {
-      loadRun(lastRunId);
-    }
+    checkAuth();
   }, []);
+
+  useEffect(() => {
+    if (!authenticated) return;
+    const lastRunId = window.localStorage.getItem(LAST_RUN_KEY);
+    if (lastRunId) loadRun(lastRunId);
+  }, [authenticated]);
 
   useEffect(() => {
     if (!run || !ACTIVE_RUNS.has(run.status)) return;
@@ -29,10 +45,14 @@ export function App() {
         const next = await fetchRun(run.id);
         if (!cancelled) setRun(next);
       } catch (err) {
-        if (!cancelled)
+        if (cancelled) return;
+        if (err instanceof AuthRequiredError) {
+          endSession();
+        } else {
           setError(
             err instanceof Error ? err.message : "Could not refresh run.",
           );
+        }
       }
     }, 1500);
 
@@ -42,11 +62,38 @@ export function App() {
     };
   }, [run]);
 
+  async function checkAuth() {
+    try {
+      const status = await fetchAuthStatus();
+      setAuthConfigured(status.configured);
+      setAuthenticated(status.authenticated);
+      setUsername(status.username);
+    } catch {
+      setAuthConfigured(false);
+      setAuthenticated(false);
+      setUsername(null);
+    } finally {
+      setAuthChecked(true);
+    }
+  }
+
+  function endSession() {
+    window.localStorage.removeItem(LAST_RUN_KEY);
+    setAuthenticated(false);
+    setUsername(null);
+    setRun(null);
+    setError(null);
+  }
+
   async function loadRun(runId: string) {
     try {
       setRun(await fetchRun(runId));
       setError(null);
-    } catch {
+    } catch (err) {
+      if (err instanceof AuthRequiredError) {
+        endSession();
+        return;
+      }
       window.localStorage.removeItem(LAST_RUN_KEY);
     }
   }
@@ -60,7 +107,11 @@ export function App() {
       window.localStorage.setItem(LAST_RUN_KEY, nextRun.id);
       setRun(nextRun);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not start run.");
+      if (err instanceof AuthRequiredError) {
+        endSession();
+      } else {
+        setError(err instanceof Error ? err.message : "Could not start run.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -81,19 +132,55 @@ export function App() {
     return Math.round((run.completed_count / run.total_count) * 100);
   }, [run]);
 
+  if (!authChecked) {
+    return (
+      <main className="loginShell">
+        <section className="panel loginPanel">
+          <h1>OFAC Batch Checker</h1>
+        </section>
+      </main>
+    );
+  }
+
+  if (!authenticated) {
+    return (
+      <LoginScreen
+        configured={authConfigured}
+        onSignedIn={(nextUsername) => {
+          setAuthenticated(true);
+          setUsername(nextUsername);
+        }}
+      />
+    );
+  }
+
   return (
     <main className="shell">
       <header className="topbar">
         <h1>OFAC Batch Checker</h1>
-        {run && (
-          <a
-            className={`downloadButton ${run.completed_count === 0 ? "disabled" : ""}`}
-            href={zipUrl(run.id)}
+        <div className="topbarActions">
+          {run && (
+            <a
+              className={`downloadButton ${run.completed_count === 0 ? "disabled" : ""}`}
+              href={zipUrl(run.id)}
+            >
+              <Download size={17} />
+              ZIP
+            </a>
+          )}
+          <span className="userLabel">{username}</span>
+          <button
+            className="secondaryButton"
+            type="button"
+            onClick={async () => {
+              await logout();
+              endSession();
+            }}
           >
-            <Download size={17} />
-            ZIP
-          </a>
-        )}
+            <LogOut size={16} />
+            Sign out
+          </button>
+        </div>
       </header>
 
       <section className="singlePageGrid">
@@ -198,6 +285,73 @@ export function App() {
           )}
         </section>
       </section>
+    </main>
+  );
+}
+
+function LoginScreen({
+  configured,
+  onSignedIn,
+}: {
+  configured: boolean;
+  onSignedIn: (username: string) => void;
+}) {
+  const [loginUsername, setLoginUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [signingIn, setSigningIn] = useState(false);
+
+  async function submitLogin(event: FormEvent) {
+    event.preventDefault();
+    if (!configured) return;
+    setSigningIn(true);
+    setLoginError(null);
+    try {
+      const status = await login(loginUsername, password);
+      onSignedIn(status.username ?? loginUsername.trim());
+    } catch (err) {
+      setLoginError(err instanceof Error ? err.message : "Could not sign in.");
+    } finally {
+      setSigningIn(false);
+    }
+  }
+
+  return (
+    <main className="loginShell">
+      <form className="panel loginPanel" onSubmit={submitLogin}>
+        <div>
+          <h1>OFAC Batch Checker</h1>
+          <p>Sign in to continue.</p>
+        </div>
+        {!configured && (
+          <div className="errorBox">Authentication is not configured.</div>
+        )}
+        <label className="field">
+          <span>Username</span>
+          <input
+            autoComplete="username"
+            value={loginUsername}
+            onChange={(event) => setLoginUsername(event.target.value)}
+          />
+        </label>
+        <label className="field">
+          <span>Password</span>
+          <input
+            autoComplete="current-password"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </label>
+        {loginError && <div className="errorBox">{loginError}</div>}
+        <button
+          className="primaryButton"
+          type="submit"
+          disabled={!configured || signingIn}
+        >
+          {signingIn ? "Signing in..." : "Sign in"}
+        </button>
+      </form>
     </main>
   );
 }

@@ -2,13 +2,26 @@ from __future__ import annotations
 
 import asyncio
 import zipfile
-from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
+from .auth import (
+    authenticate_user,
+    check_login_rate_limit,
+    clear_failed_logins,
+    clear_session_cookie,
+    current_user,
+    is_auth_configured,
+    load_auth_config,
+    login_rate_key,
+    record_failed_login,
+    require_user,
+    set_session_cookie,
+)
 from .config import FRONTEND_DIST, STORAGE_DIR
 from .store import (
     create_run,
@@ -33,15 +46,57 @@ app.add_middleware(
 )
 
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
 @app.on_event("startup")
 async def startup() -> None:
     init_store()
+
+
+@app.get("/api/auth/status")
+async def auth_status(request: Request) -> dict:
+    username = current_user(request)
+    return {
+        "configured": is_auth_configured(),
+        "authenticated": username is not None,
+        "username": username,
+    }
+
+
+@app.post("/api/auth/login")
+async def login(payload: LoginRequest, request: Request) -> JSONResponse:
+    config = load_auth_config()
+    rate_key = login_rate_key(payload.username, request)
+    check_login_rate_limit(rate_key)
+    if not authenticate_user(payload.username, payload.password, config):
+        record_failed_login(rate_key)
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+
+    username = payload.username.strip()
+    clear_failed_logins(rate_key)
+    response = JSONResponse({"configured": True, "authenticated": True, "username": username})
+    set_session_cookie(response, username, config)
+    return response
+
+
+@app.post("/api/auth/logout")
+async def logout() -> JSONResponse:
+    secure = False
+    if is_auth_configured():
+        secure = load_auth_config().cookie_secure
+    response = JSONResponse({"configured": is_auth_configured(), "authenticated": False, "username": None})
+    clear_session_cookie(response, secure=secure)
+    return response
 
 
 @app.post("/api/runs")
 async def create_run_endpoint(
     names_text: str = Form(""),
     file: UploadFile | None = File(None),
+    _: str = Depends(require_user),
 ) -> dict:
     names = parse_text_names(names_text)
     if file and file.filename:
@@ -58,7 +113,7 @@ async def create_run_endpoint(
 
 
 @app.get("/api/runs/{run_id}")
-async def get_run_endpoint(run_id: str) -> dict:
+async def get_run_endpoint(run_id: str, _: str = Depends(require_user)) -> dict:
     run = get_run(run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found.")
@@ -66,7 +121,11 @@ async def get_run_endpoint(run_id: str) -> dict:
 
 
 @app.get("/api/runs/{run_id}/results/{result_id}/pdf")
-async def download_pdf(run_id: str, result_id: int) -> FileResponse:
+async def download_pdf(
+    run_id: str,
+    result_id: int,
+    _: str = Depends(require_user),
+) -> FileResponse:
     result = get_result(run_id, result_id)
     if not result or not result.get("pdf_path"):
         raise HTTPException(status_code=404, detail="PDF not found.")
@@ -77,7 +136,7 @@ async def download_pdf(run_id: str, result_id: int) -> FileResponse:
 
 
 @app.get("/api/runs/{run_id}/zip")
-async def download_zip(run_id: str) -> FileResponse:
+async def download_zip(run_id: str, _: str = Depends(require_user)) -> FileResponse:
     run = get_run(run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found.")

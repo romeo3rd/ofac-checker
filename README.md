@@ -12,11 +12,60 @@ cd frontend
 npm install
 ```
 
+## Authentication
+
+The app fails closed until authentication environment variables are set.
+Do not commit real passwords, password hashes, or session secrets.
+
+Generate a password hash for each user:
+
+```powershell
+.\venv\Scripts\python scripts\hash_password.py
+```
+
+Generate a session secret:
+
+```powershell
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+Create a private `.env` or server environment with:
+
+```text
+OFAC_SESSION_SECRET=replace-with-a-long-random-secret
+OFAC_AUTH_USERS=you=hash-from-script,second-user=hash-from-script
+OFAC_COOKIE_SECURE=false
+OFAC_SESSION_TTL_SECONDS=43200
+```
+
+Set `OFAC_COOKIE_SECURE=true` when serving the site over HTTPS.
+
+For a Linux `systemd` deployment, put the real values in a private file:
+
+```bash
+sudo nano /etc/ofac-checker.env
+```
+
+```text
+OFAC_SESSION_SECRET=replace-with-a-long-random-secret
+OFAC_AUTH_USERS=you=hash-from-script,second-user=hash-from-script
+OFAC_COOKIE_SECURE=true
+OFAC_SESSION_TTL_SECONDS=43200
+```
+
+Then add this line under `[Service]` in `ofac-checker.service`:
+
+```ini
+EnvironmentFile=/etc/ofac-checker.env
+```
+
 ## Run
 
 Backend:
 
 ```powershell
+$env:OFAC_SESSION_SECRET = "replace-with-a-long-random-secret"
+$env:OFAC_AUTH_USERS = 'you=hash-from-script,second-user=hash-from-script'
 .\venv\Scripts\uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 

@@ -12,18 +12,18 @@ def test_password_hash_verification() -> None:
     assert not auth.verify_password("wrong password", stored_hash)
 
 
-def test_parse_comma_separated_users(monkeypatch) -> None:
+def test_load_password_hash(monkeypatch) -> None:
     stored_hash = auth.hash_password("correct horse battery staple")
-    monkeypatch.setenv("OFAC_AUTH_USERS", f"admin={stored_hash}")
+    monkeypatch.setenv("OFAC_PASSWORD_HASH", stored_hash)
     monkeypatch.setenv("OFAC_SESSION_SECRET", "x" * 48)
 
     config = auth.load_auth_config()
 
-    assert config.users == {"admin": stored_hash}
+    assert config.password_hash == stored_hash
 
 
 def test_missing_auth_config_fails_closed(monkeypatch) -> None:
-    monkeypatch.delenv("OFAC_AUTH_USERS", raising=False)
+    monkeypatch.delenv("OFAC_PASSWORD_HASH", raising=False)
     monkeypatch.delenv("OFAC_SESSION_SECRET", raising=False)
 
     try:
@@ -37,20 +37,20 @@ def test_missing_auth_config_fails_closed(monkeypatch) -> None:
 def test_signed_session_round_trip() -> None:
     stored_hash = auth.hash_password("correct horse battery staple")
     config = auth.AuthConfig(
-        users={"admin": stored_hash},
+        password_hash=stored_hash,
         session_secret="x" * 48,
         cookie_secure=False,
         session_ttl_seconds=3600,
     )
 
-    cookie = auth._sign_session("admin", config)
+    cookie = auth._sign_session(config)
 
-    assert auth._verify_session(cookie, config) == "admin"
-    assert auth._verify_session(f"{cookie}tampered", config) is None
+    assert auth._verify_session(cookie, config)
+    assert not auth._verify_session(f"{cookie}tampered", config)
 
 
 def test_login_rate_limit_blocks_repeated_failures() -> None:
-    key = "127.0.0.1:admin"
+    key = "127.0.0.1"
     auth._failed_login_attempts.clear()
 
     try:

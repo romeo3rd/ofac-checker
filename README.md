@@ -17,7 +17,7 @@ npm install
 The app fails closed until authentication environment variables are set.
 Do not commit real passwords, password hashes, or session secrets.
 
-Generate a password hash for each user:
+Generate the password hash:
 
 ```powershell
 .\venv\Scripts\python scripts\hash_password.py
@@ -33,7 +33,7 @@ Create a private `.env` or server environment with:
 
 ```text
 OFAC_SESSION_SECRET=replace-with-a-long-random-secret
-OFAC_AUTH_USERS=you=hash-from-script,second-user=hash-from-script
+OFAC_PASSWORD_HASH=hash-from-script
 OFAC_COOKIE_SECURE=false
 OFAC_SESSION_TTL_SECONDS=43200
 ```
@@ -48,7 +48,7 @@ sudo nano /etc/ofac-checker.env
 
 ```text
 OFAC_SESSION_SECRET=replace-with-a-long-random-secret
-OFAC_AUTH_USERS=you=hash-from-script,second-user=hash-from-script
+OFAC_PASSWORD_HASH=hash-from-script
 OFAC_COOKIE_SECURE=true
 OFAC_SESSION_TTL_SECONDS=43200
 ```
@@ -65,7 +65,7 @@ Backend:
 
 ```powershell
 $env:OFAC_SESSION_SECRET = "replace-with-a-long-random-secret"
-$env:OFAC_AUTH_USERS = 'you=hash-from-script,second-user=hash-from-script'
+$env:OFAC_PASSWORD_HASH = "hash-from-script"
 .\venv\Scripts\uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 

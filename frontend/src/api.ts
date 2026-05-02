@@ -3,7 +3,6 @@ import type { OfacRun } from "./types";
 export interface AuthStatus {
   configured: boolean;
   authenticated: boolean;
-  username: string | null;
 }
 
 export class AuthRequiredError extends Error {
@@ -18,12 +17,12 @@ export async function fetchAuthStatus(): Promise<AuthStatus> {
   return parseResponse<AuthStatus>(response);
 }
 
-export async function login(username: string, password: string): Promise<AuthStatus> {
+export async function login(password: string): Promise<AuthStatus> {
   const response = await fetch("/api/auth/login", {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ password }),
   });
   return parseResponse<AuthStatus>(response);
 }

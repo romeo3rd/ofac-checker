@@ -56,11 +56,6 @@ a {
   min-width: 0;
 }
 
-.userLabel {
-  color: var(--muted);
-  font-size: 13px;
-}
-
 h1,
 h2 {
   margin: 0;

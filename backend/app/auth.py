@@ -26,7 +26,7 @@ _failed_login_attempts: dict[str, list[float]] = {}
 
 @dataclass(frozen=True)
 class AuthConfig:
-    users: dict[str, str]
+    password_hash: str
     session_secret: str
     cookie_secure: bool
     session_ttl_seconds: int
@@ -54,9 +54,9 @@ def verify_password(password: str, stored_hash: str) -> bool:
 
 
 def load_auth_config() -> AuthConfig:
-    users = _parse_users(os.getenv("OFAC_AUTH_USERS", ""))
+    password_hash = os.getenv("OFAC_PASSWORD_HASH", "").strip()
     session_secret = os.getenv("OFAC_SESSION_SECRET", "")
-    if not users or len(session_secret) < 32:
+    if not password_hash or len(session_secret) < 32:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication is not configured.",
@@ -69,7 +69,7 @@ def load_auth_config() -> AuthConfig:
         ttl_seconds = DEFAULT_SESSION_TTL_SECONDS
 
     return AuthConfig(
-        users=users,
+        password_hash=password_hash,
         session_secret=session_secret,
         cookie_secure=_env_bool("OFAC_COOKIE_SECURE", default=False),
         session_ttl_seconds=ttl_seconds,
@@ -84,16 +84,13 @@ def is_auth_configured() -> bool:
     return True
 
 
-def authenticate_user(username: str, password: str, config: AuthConfig) -> bool:
-    stored_hash = config.users.get(username.strip())
-    if not stored_hash:
-        return False
-    return verify_password(password, stored_hash)
+def authenticate_password(password: str, config: AuthConfig) -> bool:
+    return verify_password(password, config.password_hash)
 
 
-def login_rate_key(username: str, request: Request) -> str:
+def login_rate_key(request: Request) -> str:
     host = request.client.host if request.client else "unknown"
-    return f"{host}:{username.strip().lower()}"
+    return host
 
 
 def check_login_rate_limit(key: str) -> None:
@@ -121,10 +118,10 @@ def clear_failed_logins(key: str) -> None:
         _failed_login_attempts.pop(key, None)
 
 
-def set_session_cookie(response: Response, username: str, config: AuthConfig) -> None:
+def set_session_cookie(response: Response, config: AuthConfig) -> None:
     response.set_cookie(
         SESSION_COOKIE,
-        _sign_session(username, config),
+        _sign_session(config),
         httponly=True,
         secure=config.cookie_secure,
         samesite="lax",
@@ -143,25 +140,23 @@ def clear_session_cookie(response: Response, secure: bool = False) -> None:
     )
 
 
-def current_user(request: Request) -> str | None:
+def is_authenticated(request: Request) -> bool:
     try:
         config = load_auth_config()
     except HTTPException:
-        return None
+        return False
     return _verify_session(request.cookies.get(SESSION_COOKIE), config)
 
 
-def require_user(request: Request) -> str:
+def require_auth(request: Request) -> None:
     config = load_auth_config()
-    username = _verify_session(request.cookies.get(SESSION_COOKIE), config)
-    if not username:
+    if not _verify_session(request.cookies.get(SESSION_COOKIE), config):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Please sign in.")
-    return username
 
 
-def _sign_session(username: str, config: AuthConfig) -> str:
+def _sign_session(config: AuthConfig) -> str:
     payload = {
-        "u": username,
+        "ok": True,
         "exp": int(time.time()) + config.session_ttl_seconds,
     }
     payload_text = json.dumps(payload, separators=(",", ":"), sort_keys=True)
@@ -170,65 +165,30 @@ def _sign_session(username: str, config: AuthConfig) -> str:
     return f"{payload_b64}.{signature}"
 
 
-def _verify_session(cookie_value: str | None, config: AuthConfig) -> str | None:
+def _verify_session(cookie_value: str | None, config: AuthConfig) -> bool:
     if not cookie_value or "." not in cookie_value:
-        return None
+        return False
     payload_b64, signature = cookie_value.rsplit(".", 1)
     expected_signature = _session_signature(payload_b64, config.session_secret)
     if not hmac.compare_digest(signature, expected_signature):
-        return None
+        return False
 
     try:
         payload = json.loads(_b64decode(payload_b64).decode("utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
-        return None
+        return False
 
-    username = payload.get("u")
     expires_at = payload.get("exp")
-    if not isinstance(username, str) or not isinstance(expires_at, int):
-        return None
+    if payload.get("ok") is not True or not isinstance(expires_at, int):
+        return False
     if expires_at < int(time.time()):
-        return None
-    if username not in config.users:
-        return None
-    return username
+        return False
+    return True
 
 
 def _session_signature(payload_b64: str, secret: str) -> str:
     digest = hmac.new(secret.encode("utf-8"), payload_b64.encode("utf-8"), hashlib.sha256).digest()
     return _b64encode(digest)
-
-
-def _parse_users(raw_users: str) -> dict[str, str]:
-    raw_users = raw_users.strip()
-    if not raw_users:
-        return {}
-    if raw_users.startswith("{"):
-        try:
-            parsed = json.loads(raw_users)
-        except json.JSONDecodeError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="OFAC_AUTH_USERS is invalid JSON.",
-            ) from exc
-        if not isinstance(parsed, dict):
-            return {}
-        return {
-            str(username).strip(): str(password_hash).strip()
-            for username, password_hash in parsed.items()
-            if str(username).strip() and str(password_hash).strip()
-        }
-
-    users: dict[str, str] = {}
-    for item in raw_users.split(","):
-        if "=" not in item:
-            continue
-        username, password_hash = item.split("=", 1)
-        username = username.strip()
-        password_hash = password_hash.strip()
-        if username and password_hash:
-            users[username] = password_hash
-    return users
 
 
 def _env_bool(name: str, default: bool) -> bool:

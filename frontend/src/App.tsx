@@ -24,7 +24,6 @@ export function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authConfigured, setAuthConfigured] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
-  const [username, setUsername] = useState<string | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -67,11 +66,9 @@ export function App() {
       const status = await fetchAuthStatus();
       setAuthConfigured(status.configured);
       setAuthenticated(status.authenticated);
-      setUsername(status.username);
     } catch {
       setAuthConfigured(false);
       setAuthenticated(false);
-      setUsername(null);
     } finally {
       setAuthChecked(true);
     }
@@ -80,7 +77,6 @@ export function App() {
   function endSession() {
     window.localStorage.removeItem(LAST_RUN_KEY);
     setAuthenticated(false);
-    setUsername(null);
     setRun(null);
     setError(null);
   }
@@ -146,9 +142,8 @@ export function App() {
     return (
       <LoginScreen
         configured={authConfigured}
-        onSignedIn={(nextUsername) => {
+        onSignedIn={() => {
           setAuthenticated(true);
-          setUsername(nextUsername);
         }}
       />
     );
@@ -168,7 +163,6 @@ export function App() {
               ZIP
             </a>
           )}
-          <span className="userLabel">{username}</span>
           <button
             className="secondaryButton"
             type="button"
@@ -294,9 +288,8 @@ function LoginScreen({
   onSignedIn,
 }: {
   configured: boolean;
-  onSignedIn: (username: string) => void;
+  onSignedIn: () => void;
 }) {
-  const [loginUsername, setLoginUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
   const [signingIn, setSigningIn] = useState(false);
@@ -307,8 +300,8 @@ function LoginScreen({
     setSigningIn(true);
     setLoginError(null);
     try {
-      const status = await login(loginUsername, password);
-      onSignedIn(status.username ?? loginUsername.trim());
+      await login(password);
+      onSignedIn();
     } catch (err) {
       setLoginError(err instanceof Error ? err.message : "Could not sign in.");
     } finally {
@@ -326,14 +319,6 @@ function LoginScreen({
         {!configured && (
           <div className="errorBox">Authentication is not configured.</div>
         )}
-        <label className="field">
-          <span>Username</span>
-          <input
-            autoComplete="username"
-            value={loginUsername}
-            onChange={(event) => setLoginUsername(event.target.value)}
-          />
-        </label>
         <label className="field">
           <span>Password</span>
           <input

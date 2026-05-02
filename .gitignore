@@ -1,0 +1,30 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Environment and local config
+.env
+.env.*
+!.env.example
+
+# Runtime data
+storage/
+*.sqlite
+*.sqlite3
+*.db
+*.pdf
+*.zip
+*.log
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

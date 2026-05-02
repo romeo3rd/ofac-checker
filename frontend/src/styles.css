@@ -1,0 +1,400 @@
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI", "Aptos", system-ui, sans-serif;
+  background: #fafafa;
+  color: #1f2328;
+  --ink: #1f2328;
+  --muted: #6b7280;
+  --line: #d8dee4;
+  --panel: #ffffff;
+  --accent: #174ea6;
+  --hit: #b42318;
+  --ok: #1f7a4d;
+  --warn: #9a6700;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: #fafafa;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+.shell {
+  width: min(1180px, calc(100vw - 40px));
+  margin: 0 auto;
+  padding: 28px 0 40px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+h1,
+h2 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+h1 {
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 650;
+}
+
+h2 {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.singlePageGrid {
+  display: grid;
+  grid-template-columns: minmax(300px, 390px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.submitPanel {
+  padding: 18px;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 36px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.submitPanel .panelHeader {
+  padding: 0 0 14px;
+  margin-bottom: 14px;
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+textarea {
+  width: 100%;
+  min-height: 280px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 12px;
+  color: var(--ink);
+  background: #fff;
+  outline: none;
+  line-height: 1.45;
+}
+
+textarea:focus,
+.fileDrop:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(23, 78, 166, 0.12);
+}
+
+.fileDrop {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  margin: 12px 0;
+  padding: 0 12px;
+  border: 1px dashed var(--line);
+  border-radius: 5px;
+  color: var(--muted);
+  background: #fafafa;
+  cursor: pointer;
+}
+
+.fileDrop input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.primaryButton,
+.secondaryButton,
+.downloadButton,
+.iconLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primaryButton {
+  width: 100%;
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: 650;
+}
+
+.secondaryButton {
+  padding: 0 12px;
+  color: var(--muted);
+}
+
+.primaryButton:hover,
+.downloadButton:hover,
+.iconLink:hover {
+  filter: brightness(0.97);
+}
+
+.primaryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.buttonRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.downloadButton {
+  padding: 0 12px;
+  color: var(--accent);
+  font-weight: 650;
+}
+
+.downloadButton.disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th,
+td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+th {
+  color: var(--muted);
+  background: #fafafa;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+tr:last-child td {
+  border-bottom: 0;
+}
+
+.nameCell {
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+  color: var(--muted);
+  background: #f6f8fa;
+  border: 1px solid var(--line);
+}
+
+.badge.checking,
+.badge.running {
+  color: var(--accent);
+}
+
+.badge.no_hit,
+.badge.completed {
+  color: var(--ok);
+}
+
+.badge.hit_found {
+  color: var(--hit);
+}
+
+.badge.error,
+.badge.completed_with_errors {
+  color: var(--warn);
+}
+
+.statsBand {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid var(--line);
+}
+
+.metric {
+  min-height: 58px;
+  padding: 12px 14px;
+  border-right: 1px solid var(--line);
+  background: #fff;
+}
+
+.metric:last-child {
+  border-right: 0;
+}
+
+.metric span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.metric strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 650;
+}
+
+.metric.danger strong {
+  color: var(--hit);
+}
+
+.metric.warn strong {
+  color: var(--warn);
+}
+
+.progressTrack {
+  height: 4px;
+  background: #eef1f4;
+}
+
+.progressTrack div {
+  height: 100%;
+  background: var(--accent);
+  transition: width 220ms ease;
+}
+
+.resultPanel {
+  min-height: 408px;
+}
+
+.resultHeader p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.iconLink {
+  min-height: 30px;
+  padding: 0 9px;
+  color: var(--accent);
+  font-weight: 650;
+}
+
+.muted,
+.emptyState {
+  color: var(--muted);
+}
+
+.emptyState.large {
+  min-height: 364px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  padding: 22px;
+  text-align: center;
+}
+
+.emptyState.large strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.errorBox {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid #f1b8b3;
+  border-radius: 5px;
+  color: var(--hit);
+  background: #fff8f7;
+  font-size: 13px;
+}
+
+.errorText {
+  color: var(--hit);
+}
+
+@media (max-width: 820px) {
+  .shell {
+    width: min(100vw - 24px, 1180px);
+    padding-top: 18px;
+  }
+
+  .topbar,
+  .singlePageGrid {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .statsBand {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metric:nth-child(2) {
+    border-right: 0;
+  }
+
+  .metric:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--line);
+  }
+}
